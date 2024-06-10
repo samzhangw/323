@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>電子白板 - 顯示頁面</title>
+    <style>
+        canvas {
+            border: 1px solid black;
+        }
+        button {
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="display" width="800" height="600"></canvas>
+    <button id="unlock">解鎖</button>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script>
+        const canvas = document.getElementById('display');
+        const context = canvas.getContext('2d');
+        const socket = io();
+        const unlockButton = document.getElementById('unlock');
+
+        socket.on('draw_event', (data) => {
+            if (data.type === 'draw') {
+                context.lineTo(data.x, data.y);
+                context.stroke();
+            } else if (data.type === 'end') {
+                context.beginPath();
+            }
+        });
+
+        socket.on('submit_event', (data) => {
+            if (data.type === 'submit') {
+                const image = new Image();
+                image.src = data.image;
+                image.onload = () => {
+                    context.clearRect(0, 0, canvas.width, canvas.height);
+                    context.drawImage(image, 0, 0);
+                };
+            }
+        });
+
+        socket.on('clear_event', () => {
+            context.clearRect(0, 0, canvas.width, canvas.height);
+        });
+
+        unlockButton.addEventListener('click', () => {
+            socket.emit('unlock_event');
+        });
+
+        // 請求當前畫布數據以防頁面刷新
+        socket.emit('request_canvas');
+    </script>
+</body>
+</html>

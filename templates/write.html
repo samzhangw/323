@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>電子白板 - 書寫頁面</title>
+    <style>
+        canvas {
+            border: 1px solid black;
+        }
+        button {
+            margin-top: 10px;
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="whiteboard" width="800" height="600"></canvas>
+    <button id="submit">送出</button>
+    <button id="clear">清除</button>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script>
+        const canvas = document.getElementById('whiteboard');
+        const context = canvas.getContext('2d');
+        const socket = io();
+        const submitButton = document.getElementById('submit');
+        const clearButton = document.getElementById('clear');
+
+        let drawing = false;
+
+        const startDrawing = (e) => {
+            drawing = true;
+            context.moveTo(e.clientX - canvas.offsetLeft, e.clientY - canvas.offsetTop);
+        };
+
+        const draw = (e) => {
+            if (drawing) {
+                context.lineTo(e.clientX - canvas.offsetLeft, e.clientY - canvas.offsetTop);
+                context.stroke();
+                socket.emit('draw_event', { x: e.clientX - canvas.offsetLeft, y: e.clientY - canvas.offsetTop, type: 'draw' });
+            }
+        };
+
+        const stopDrawing = () => {
+            drawing = false;
+            context.beginPath();
+            socket.emit('draw_event', { type: 'end' });
+        };
+
+        const lockCanvas = () => {
+            canvas.removeEventListener('mousedown', startDrawing);
+            canvas.removeEventListener('mousemove', draw);
+            canvas.removeEventListener('mouseup', stopDrawing);
+            submitButton.disabled = true;
+        };
+
+        const unlockCanvas = () => {
+            canvas.addEventListener('mousedown', startDrawing);
+            canvas.addEventListener('mousemove', draw);
+            canvas.addEventListener('mouseup', stopDrawing);
+            submitButton.disabled = false;
+        };
+
+        canvas.addEventListener('mousedown', startDrawing);
+        canvas.addEventListener('mousemove', draw);
+        canvas.addEventListener('mouseup', stopDrawing);
+
+        submitButton.addEventListener('click', () => {
+            const dataUrl = canvas.toDataURL();
+            socket.emit('submit_event', { type: 'submit', image: dataUrl });
+            lockCanvas();
+        });
+
+        clearButton.addEventListener('click', () => {
+            context.clearRect(0, 0, canvas.width, canvas.height);
+            socket.emit('clear_event');
+        });
+
+        socket.on('clear_event', () => {
+            context.clearRect(0, 0, canvas.width, canvas.height);
+        });
+
+        socket.on('unlock_event', () => {
+            unlockCanvas();
+        });
+
+        // 請求當前畫布數據以防頁面刷新
+        socket.emit('request_canvas');
+    </script>
+</body>
+</html>
